@@ -244,3 +244,64 @@ function revoke_sub($username,$location)
     $data_useer = json_decode($output, true);
     return $data_useer;
 }
+
+<?php
+require __DIR__ . '/vendor/autoload.php';
+
+// تنظیمات پنل
+$xui = new \alirezax5\XuiApi\Panel\Vaxilu('YOUR_PANEL_URL', 'YOUR_PANEL_USERNAME', 'YOUR_PANEL_PASSWORD');
+
+// تعیین کوکی
+$xui->setCookie(__DIR__.'/a.txt');
+
+// ورود به پنل
+$xui->login();
+
+// تابعی برای افزودن کلاینت جدید
+function addNewClient($xui, $inboundId, $uuid, $email, $subId, $tgId, $flow, $traffic, $timeMs, $limitIp, $fingerprint, $isTrojan) {
+    return $xui->addnewClient(
+        $inboundId,
+        $uuid,
+        $email,
+        $subId,
+        $tgId,
+        $flow,
+        $traffic,
+        $timeMs,
+        $limitIp,
+        $fingerprint,
+        $isTrojan
+    );
+}
+
+// نمونه‌ای از اضافه کردن کلاینت جدید
+$response = addNewClient(
+    $xui,
+    123,                          // inbound id
+    'your-uuid-or-password',      // uuid or password
+    'email@example.com',          // email
+    'subId-example',              // subId
+    'tgid-example',               // tgid
+    'flow-example',               // flow
+    10,                           // traffic in Gb
+    1640995200000,               // time in milliseconds (مثلاً: 1 ژانویه 2022)
+    1,                            // limitIp
+    'fingerprint-example',        // fingerprint
+    false                         // isTrojan
+);
+
+// چاپ پاسخ
+var_dump($response);
+
+// برای PHP 8
+$responsePhp8 = $xui->addnewClient(
+    id: 123,
+    uuid: 'your-uuid',
+    email: 'email@example.com',
+    totalgb: 0,
+    eT: 0
+);
+
+// چاپ پاسخ
+var_dump($responsePhp8);
+
