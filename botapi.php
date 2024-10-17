@@ -1,82 +1,246 @@
 <?php
-function telegram($method, $datas = [])
-{
-    global $APIKEY;
-    $url = "https://api.telegram.org/bot" . $APIKEY . "/" . $method;
-    $ch = curl_init();
-    curl_setopt($ch, CURLOPT_URL, $url);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_POSTFIELDS, $datas);
-    $res = curl_exec($ch);
-    if (curl_error($ch)) {
-        var_dump(curl_error($ch));
-    } else {
-        return json_decode($res);
+require_once 'functions.php';
+#-----------------------------#
+function token_panel($url_panel,$username_panel,$password_panel){
+    $panel = select("marzban_panel","*","url_panel",$url_panel,"select");
+    if($panel['datelogin'] != null){
+        $date = json_decode($panel['datelogin'],true);
+        if(isset($date['time'])){
+        $timecurrent = time();
+        $start_date = time() - strtotime($date['time']);
+        if($start_date <= 600){
+            return $date;
+        }
+        }
     }
-}
-function sendmessage($chat_id,$text,$keyboard,$parse_mode){
-    telegram('sendmessage',[
-        'chat_id' => $chat_id,
-        'text' => $text,
-        'disable_web_page_preview' => true,
-        'reply_markup' => $keyboard,
-        'parse_mode' => $parse_mode,
-        
-        ]);
+    $url_get_token = $url_panel.'/api/admin/token';
+    $data_token = array(
+        'username' => $username_panel,
+        'password' => $password_panel
+    );
+    $options = array(
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POST => true,
+        CURLOPT_TIMEOUT_MS => 6000,
+        CURLOPT_POSTFIELDS => http_build_query($data_token),
+        CURLOPT_HTTPHEADER => array(
+            'Content-Type: application/x-www-form-urlencoded',
+            'accept: application/json'
+        )
+    );
+    $curl_token = curl_init($url_get_token);
+    curl_setopt_array($curl_token, $options);
+    $token = curl_exec($curl_token);
+    if (curl_error($curl_token)) {
+        $token = [];
+        $token['errror'] = curl_error($curl_token);
+        return $token;
+    }
+    curl_close($curl_token);
+
+    $body = json_decode( $token, true);
+    if(isset($body['access_token'])){
+        $time = date('Y/m/d H:i:s');
+        $data = json_encode(array(
+            'time' => $time,
+            'access_token' => $body['access_token']
+            ));
+        update("marzban_panel","datelogin",$data,'name_panel',$panel['name_panel']);
+    }
+    return $body;
 }
 
-function forwardMessage($chat_id,$message_id,$chat_id_user){
-    telegram('forwardMessage',[
-        'from_chat_id'=> $chat_id,
-        'message_id'=> $message_id,
-        'chat_id'=> $chat_id_user,
-    ]);
-}
-function sendphoto($chat_id,$photoid,$caption,$parse_mode = "HTML"){
-    telegram('sendphoto',[
-        'chat_id' => $chat_id,
-        'photo'=> $photoid,
-        'caption'=> $caption,
-        'parse_mode' => $parse_mode,
-    ]);
-}
-function sendvideo($chat_id,$videoid,$caption){
-    telegram('sendvideo',[
-        'chat_id' => $chat_id,
-        'video'=> $videoid,
-        'caption'=> $caption,
-    ]);
-}
-function Editmessagetext($chat_id, $message_id, $text, $keyboard){
-    telegram('editmessagetext', [
-        'chat_id' => $chat_id,
-        'message_id' => $message_id,
-        'text' => $text,
-        'reply_markup' => $keyboard
-    ]);
-}
- function deletemessage($chat_id, $message_id){
-  telegram('deletemessage', [
-'chat_id' => $chat_id, 
-'message_id' => $message_id,
-]);
- }
 #-----------------------------#
-$update = json_decode(file_get_contents("php://input"), true);
-$from_id = $update['message']['from']['id'] ?? $update['callback_query']['from']['id'] ?? 0;
-$Chat_type = $update["message"]["chat"]["type"] ?? '';
-$text = $update["message"]["text"] ?? '';
-$text_callback = $update["callback_query"]["message"]["text"] ?? '';
-$message_id = $update["message"]["message_id"] ?? $update["callback_query"]["message"]["message_id"] ?? 0;
-$photo = $update["message"]["photo"] ?? 0;
-$photoid = $photo ? end($photo)["file_id"] : '';
-$caption = $update["message"]["caption"] ?? '';
-$video = $update["message"]["video"] ?? 0;
-$videoid = $video ? $video["file_id"] : 0;
-$forward_from_id = $update["message"]["reply_to_message"]["forward_from"]["id"] ?? 0;
-$datain = $update["callback_query"]["data"] ?? '';
-$username = $update['message']['from']['username'] ?? $update['callback_query']['from']['username'] ?? 'NOT_USERNAME';
-$user_phone =$update["message"]["contact"]["phone_number"] ?? 0;
-$contact_id = $update["message"]["contact"]["user_id"] ?? 0;
-$first_name = $update['message']['from']['first_name']  ?? '';
-$callback_query_id = $update["callback_query"]["id"] ?? 0;
+
+function getuser($usernameac,$location)
+{
+    $marzban_list_get = select("marzban_panel", "*", "name_panel", $location,"select");
+    $Check_token = token_panel($marzban_list_get['url_panel'], $marzban_list_get['username_panel'], $marzban_list_get['password_panel']);
+    $url =  $marzban_list_get['url_panel'].'/api/user/' . $usernameac;
+    $header_value = 'Bearer ';
+
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, $url);
+    curl_setopt($ch, CURLOPT_HTTPGET, true);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, array(
+        'Accept: application/json',
+        'Authorization: ' . $header_value .  $Check_token['access_token']
+    ));
+
+    $output = curl_exec($ch);
+    curl_close($ch);
+    $data_useer = json_decode($output, true);
+    return $data_useer;
+}
+#-----------------------------#
+function ResetUserDataUsage($usernameac,$location)
+{
+    $marzban_list_get = select("marzban_panel", "*", "name_panel", $location,"select");
+    $Check_token = token_panel($marzban_list_get['url_panel'], $marzban_list_get['username_panel'], $marzban_list_get['password_panel']);
+    $url =  $marzban_list_get['url_panel'].'/api/user/' . $usernameac.'/reset';
+    $header_value = 'Bearer ';
+
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, $url);
+    curl_setopt($ch, CURLOPT_POST , true);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, array(
+        'Accept: application/json',
+        'Authorization: ' . $header_value .  $Check_token['access_token']
+    ));
+
+    $output = curl_exec($ch);
+    curl_close($ch);
+    $data_useer = json_decode($output, true);
+    return $data_useer;
+}
+#-----------------------------#
+function adduser($username,$expire,$data_limit,$location)
+{
+    $marzban_list_get = select("marzban_panel", "*", "name_panel", $location,"select");
+    $Check_token = token_panel($marzban_list_get['url_panel'], $marzban_list_get['username_panel'], $marzban_list_get['password_panel']);
+    $url = $marzban_list_get['url_panel']."/api/user";
+    $nameprotocol = array();
+if(isset($marzban_list_get['vless']) && $marzban_list_get['vless'] == "onvless"){
+    $nameprotocol['vless'] = array();
+}
+if(isset($marzban_list_get['vmess']) && $marzban_list_get['vmess'] == "onvmess"){
+    $nameprotocol['vmess'] = array();
+}
+if(isset($marzban_list_get['trojan']) && $marzban_list_get['trojan'] == "ontrojan"){
+    $nameprotocol['trojan'] = array();
+}
+if(isset($marzban_list_get['shadowsocks']) && $marzban_list_get['shadowsocks'] == "onshadowsocks"){
+    $nameprotocol['shadowsocks'] = array();
+}
+if(isset($nameprotocol['vless']) && $marzban_list_get['flow'] == "flowon"){
+    $nameprotocol['vless']['flow'] = 'xtls-rprx-vision';
+}
+    $header_value = 'Bearer ';
+    $data = array(
+        "proxies" => $nameprotocol,
+        "data_limit" => $data_limit,
+        "username" => $username
+    );
+    if($expire == "0"){
+        $data['expire'] = 0;
+    }else {
+        if($marzban_list_get['onholdstatus'] == "ononhold"){
+            $data["expire"] = 0;
+            $data["status"] = "on_hold";
+            $data["on_hold_expire_duration"] = $expire - time();
+        }else{
+        $data['expire'] = $expire;
+        }
+    }
+    $payload = json_encode($data);
+
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, $url);
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, array(
+        'Accept: application/json',
+        'Authorization: ' . $header_value .  $Check_token['access_token'],
+        'Content-Type: application/json'
+    ));
+    curl_setopt($ch, CURLOPT_POSTFIELDS, $payload);
+
+    $response = curl_exec($ch);
+    curl_close($ch);
+
+    return $response;
+}
+//----------------------------------
+function Get_System_Stats($location){
+    $marzban_list_get = select("marzban_panel", "*", "name_panel", $location,"select");
+    $Check_token = token_panel($marzban_list_get['url_panel'], $marzban_list_get['username_panel'], $marzban_list_get['password_panel']);
+    $url =  $marzban_list_get['url_panel'].'/api/system';
+    $header_value = 'Bearer ';
+
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, $url);
+    curl_setopt($ch, CURLOPT_HTTPGET, true);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, array(
+        'Accept: application/json',
+        'Authorization: ' . $header_value .  $Check_token['access_token'],
+    ));
+
+    $output = curl_exec($ch);
+    curl_close($ch);
+    $Get_System_Stats = json_decode($output, true);
+    return $Get_System_Stats;
+}
+//----------------------------------
+function removeuser($location,$username)
+{
+    $marzban_list_get = select("marzban_panel", "*", "name_panel", $location,"select");
+    $Check_token = token_panel($marzban_list_get['url_panel'], $marzban_list_get['username_panel'], $marzban_list_get['password_panel']);
+    $url =  $marzban_list_get['url_panel'].'/api/user/'.$username;
+    $header_value = 'Bearer ';
+
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, $url);
+    curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'DELETE');
+    curl_setopt($ch, CURLOPT_HTTPGET, true);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, array(
+        'Accept: application/json',
+        'Authorization: ' . $header_value .  $Check_token['access_token']
+    ));
+
+    $output = curl_exec($ch);
+    curl_close($ch);
+    $data_useer = json_decode($output, true);
+    return $data_useer;
+}
+//----------------------------------
+function Modifyuser($location,$username,array $data)
+{
+    $marzban_list_get = select("marzban_panel", "*", "name_panel", $location,"select");
+    $Check_token = token_panel($marzban_list_get['url_panel'], $marzban_list_get['username_panel'], $marzban_list_get['password_panel']);
+    $url =  $marzban_list_get['url_panel'].'/api/user/'.$username;
+    $payload = json_encode($data);
+$ch = curl_init();
+curl_setopt($ch, CURLOPT_URL, $url);
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'PUT');
+curl_setopt($ch, CURLOPT_POSTFIELDS, $payload);
+$headers = array();
+$headers[] = 'Accept: application/json';
+$headers[] = 'Authorization: Bearer '.$Check_token['access_token'];
+$headers[] = 'Content-Type: application/json';
+curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+
+$result = curl_exec($ch);
+curl_close($ch);
+     $data_useer = json_decode($result, true);
+    return $data_useer;
+}
+
+#-----------------------------------------------#
+function revoke_sub($username,$location)
+{
+    global $connect;
+    $marzban_list_get = select("marzban_panel", "*", "name_panel", $location,"select");
+    $Check_token = token_panel($marzban_list_get['url_panel'], $marzban_list_get['username_panel'], $marzban_list_get['password_panel']);
+    $usernameac = $username;
+    $url =  $marzban_list_get['url_panel'].'/api/user/' . $usernameac.'/revoke_sub';
+    $header_value = 'Bearer ';
+
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, $url);
+    curl_setopt($ch, CURLOPT_POST , true);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, array(
+        'Accept: application/json',
+        'Authorization: ' . $header_value .  $Check_token['access_token']
+    ));
+
+    $output = curl_exec($ch);
+    curl_close($ch);
+    $data_useer = json_decode($output, true);
+    return $data_useer;
+}
